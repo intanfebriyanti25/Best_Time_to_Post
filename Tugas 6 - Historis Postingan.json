@@ -1,0 +1,428 @@
+{
+  "name": "Tugas 6 - Historis Postingan",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -144,
+        -16
+      ],
+      "id": "9aa1b588-e039-4112-9d8a-ddb9d48010a8",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1sPWCZBPB1-uSRIMzlVFzN3IvhS08DVeWYM-Yd1ttZkg",
+          "mode": "list",
+          "cachedResultName": "Best Time to Post Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1sPWCZBPB1-uSRIMzlVFzN3IvhS08DVeWYM-Yd1ttZkg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Data Posting",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1sPWCZBPB1-uSRIMzlVFzN3IvhS08DVeWYM-Yd1ttZkg/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        128,
+        -16
+      ],
+      "id": "27fd3c40-490e-4640-b844-f2a18e6fd6d2",
+      "name": "Baca Data Posting",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "JOHMSN79ivVoskg8",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "clear",
+        "documentId": {
+          "__rl": true,
+          "value": "1sPWCZBPB1-uSRIMzlVFzN3IvhS08DVeWYM-Yd1ttZkg",
+          "mode": "list",
+          "cachedResultName": "Best Time to Post Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1sPWCZBPB1-uSRIMzlVFzN3IvhS08DVeWYM-Yd1ttZkg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 723653925,
+          "mode": "list",
+          "cachedResultName": "Hasil Analisis",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1sPWCZBPB1-uSRIMzlVFzN3IvhS08DVeWYM-Yd1ttZkg/edit#gid=723653925"
+        },
+        "keepFirstRow": true
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        576,
+        -16
+      ],
+      "id": "c0b97b4e-5226-49a3-9ec9-bc307e6e913c",
+      "name": "Hapus Analisis Lama",
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "JOHMSN79ivVoskg8",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ===== Fungsi Engagement Score (Tugas 2) =====\nconst BOBOT = { likes: 1, comments: 2, shares: 3 };\n\nfunction hitungEngagementScore(post) {\n  const likes    = Number(post['Likes'])    || 0;\n  const comments = Number(post['Comments']) || 0;\n  const shares   = Number(post['Shares'])   || 0;\n  return (likes * BOBOT.likes) + (comments * BOBOT.comments) + (shares * BOBOT.shares);\n}\n\nconst round2 = n => Math.round(n * 100) / 100;\nconst pad = n => String(n).padStart(2, '0');\n\n// ===== Ambil hanya baris yang valid =====\nconst rows = $input.all()\n  .map(i => i.json)\n  .filter(r => r['Jam Posting'] !== undefined && r['Jam Posting'] !== '' && !isNaN(parseInt(r['Jam Posting'], 10)));\n\nconst totalData = rows.length;\n\n// ===== Agregasi per jam (Tugas 3) =====\nconst perJam = {};\nfor (const row of rows) {\n  const jam = parseInt(row['Jam Posting'], 10);\n  if (!perJam[jam]) perJam[jam] = { n: 0, likes: 0, comments: 0, shares: 0, skor: 0, platform: {} };\n  const g = perJam[jam];\n  g.n += 1;\n  g.likes    += Number(row['Likes'])    || 0;\n  g.comments += Number(row['Comments']) || 0;\n  g.shares   += Number(row['Shares'])   || 0;\n  g.skor     += hitungEngagementScore(row);\n  const p = row['Platform'] || '-';\n\n  g.platform[p] = (g.platform[p] || 0) + 1;\n}\n\nconst hasil = Object.entries(perJam).map(([jam, g]) => ({\n  jam: Number(jam),\n  n: g.n,\n  avgLikes: round2(g.likes / g.n),\n  avgComments: round2(g.comments / g.n),\n  avgShares: round2(g.shares / g.n),\n  avgEngagement: round2(g.skor / g.n),\n  totalSkor: g.skor,\n  platformTerbanyak: Object.entries(g.platform).sort((a, b) => b[1] - a[1])[0][0],\n}));\n\n// ===== Urutkan dari tertinggi, ambil 5 teratas =====\nhasil.sort((a, b) => b.avgEngagement - a.avgEngagement);\nconst top5 = hasil.slice(0, 5);\n\nconst REKOMENDASI = [\n  'Waktu terbaik - prioritaskan konten utama',\n  'Sangat baik - cocok untuk konten penting',\n  'Baik - cocok untuk konten pendukung',\n  'Cukup baik - gunakan sebagai alternatif',\n  'Alternatif - gunakan untuk konten ringan',\n];\n\nconst tanggal = new Date().toLocaleDateString('id-ID', {\n  timeZone: 'Asia/Jakarta', day: '2-digit', month: 'long', year: 'numeric',\n});\n\nreturn top5.map((h, i) => {\n  const jamLabel = `${pad(h.jam)}:00-${pad(h.jam)}:59`;\n\n  return {\n    json: {\n      ranking: i + 1,\n      jam: jamLabel,\n      avgEngagement: h.avgEngagement,\n      jumlahPost: h.n,\n      avgLikes: h.avgLikes,\n      avgComments: h.avgComments,\n      avgShares: h.avgShares,\n      platformTerbanyak: h.platformTerbanyak,\n      engagementScore: h.totalSkor,\n      rekomendasi: REKOMENDASI[i],\n      tanggalAnalisis: tanggal,\n      totalDataDianalisis: totalData,\n      pesan: `Peringkat ${i + 1}: ${jamLabel} WIB - rata-rata score ${h.avgEngagement}`,\n    },\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        352,
+        -16
+      ],
+      "id": "a3f5010e-fb22-432e-ba01-765ad8d7f613",
+      "name": "Analisis Waktu Terbaik"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $('Analisis Waktu Terbaik').all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        784,
+        -16
+      ],
+      "id": "51bb42a9-ad5e-4e7b-93c9-7c0c1eecb2a1",
+      "name": "Ambil Ulang Hasil"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1sPWCZBPB1-uSRIMzlVFzN3IvhS08DVeWYM-Yd1ttZkg",
+          "mode": "list",
+          "cachedResultName": "Best Time to Post Data",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1sPWCZBPB1-uSRIMzlVFzN3IvhS08DVeWYM-Yd1ttZkg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 723653925,
+          "mode": "list",
+          "cachedResultName": "Hasil Analisis",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1sPWCZBPB1-uSRIMzlVFzN3IvhS08DVeWYM-Yd1ttZkg/edit#gid=723653925"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {
+            "ranking": "={{ $('Analisis Waktu Terbaik').item.json.ranking }}",
+            "jam": "={{ $('Analisis Waktu Terbaik').item.json.jam }}",
+            "avgEngagement": "={{ $('Analisis Waktu Terbaik').item.json.avgEngagement }}",
+            "jumlahPost": "={{ $('Analisis Waktu Terbaik').item.json.jumlahPost }}",
+            "avgLikes": "={{ $('Analisis Waktu Terbaik').item.json.avgLikes }}",
+            "avgComments": "={{ $('Analisis Waktu Terbaik').item.json.avgComments }}",
+            "avgShares": "={{ $('Analisis Waktu Terbaik').item.json.avgShares }}",
+            "platformTerbanyak": "={{ $('Analisis Waktu Terbaik').item.json.platformTerbanyak }}",
+            "engagementScore": "={{ $('Analisis Waktu Terbaik').item.json.engagementScore }}",
+            "rekomendasi": "={{ $('Analisis Waktu Terbaik').item.json.rekomendasi }}",
+            "tanggalAnalisis": "={{ $('Analisis Waktu Terbaik').item.json.tanggalAnalisis }}",
+            "totalDataDianalisis": "={{ $('Analisis Waktu Terbaik').item.json.totalDataDianalisis }}"
+          },
+          "matchingColumns": [
+            "ranking"
+          ],
+          "schema": [
+            {
+              "id": "ranking",
+              "displayName": "ranking",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "jam",
+              "displayName": "jam",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "avgEngagement",
+              "displayName": "avgEngagement",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "jumlahPost",
+              "displayName": "jumlahPost",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "avgLikes",
+              "displayName": "avgLikes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "avgComments",
+              "displayName": "avgComments",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "avgShares",
+              "displayName": "avgShares",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "platformTerbanyak",
+              "displayName": "platformTerbanyak",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "engagementScore",
+              "displayName": "engagementScore",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "rekomendasi",
+              "displayName": "rekomendasi",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "tanggalAnalisis",
+              "displayName": "tanggalAnalisis",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "totalDataDianalisis",
+              "displayName": "totalDataDianalisis",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "pesan",
+              "displayName": "pesan",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1024,
+        -16
+      ],
+      "id": "192df656-d688-4e13-959d-50b5a11f1fcd",
+      "name": "Tulis Hasil Baru",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "JOHMSN79ivVoskg8",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const top5 = $input.all().map(i => i.json);\nconst medali = ['🥇', '🥈', '🥉', '4️⃣', '5️⃣'];\n\nlet pesan = `📊 <b>LAPORAN HARIAN: JAM TERBAIK POSTING</b> 📊\\n`;\npesan += `📅 ${top5[0].tanggalAnalisis}\\n`;\npesan += `📁 Data dianalisis: <b>${top5[0].totalDataDianalisis}</b> postingan\\n`;\npesan += `━━━━━━━━━━━━━━━━━━\\n\\n`;\npesan += `🔥 <b>Top 5 Jam Dengan Engagement Tertinggi:</b>\\n\\n`;\n\ntop5.forEach((d, i) => {\n  pesan += `${medali[i]} <b>${d.jam} WIB</b>\\n`;\n  pesan += `     ⚡ Rata-rata Score: <b>${d.avgEngagement}</b>\\n`;\n  pesan += `     ❤️ ${d.avgLikes}  💬 ${d.avgComments}  🔁 ${d.avgShares}\\n`;\n  pesan += `     📱 ${d.platformTerbanyak} • ${d.jumlahPost} post\\n\\n`;\n});\n\npesan += `━━━━━━━━━━━━━━━━━━\\n`;\npesan += `💡 <b>Rekomendasi:</b> ${top5[0].rekomendasi}\\n`;\npesan += `🧮 <i>Rumus: Likes×1 + Comments×2 + Shares×3</i>`;\n\nreturn [{ json: { pesan } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1248,
+        -16
+      ],
+      "id": "1a31818b-99a2-45c0-b584-19225698f29e",
+      "name": "Format Pesan Telegram"
+    },
+    {
+      "parameters": {
+        "chatId": "1613990544",
+        "text": "={{ $json.pesan }}",
+        "additionalFields": {
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1472,
+        -16
+      ],
+      "id": "f7a743d7-8904-4857-be80-2a7b91687b02",
+      "name": "Send a text message",
+      "webhookId": "6fb2382d-e67e-417c-8e72-e389eb63989b",
+      "credentials": {
+        "telegramApi": {
+          "id": "vlo6J2cQbWLCK9XI",
+          "name": "historis"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Baca Data Posting",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Baca Data Posting": {
+      "main": [
+        [
+          {
+            "node": "Analisis Waktu Terbaik",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analisis Waktu Terbaik": {
+      "main": [
+        [
+          {
+            "node": "Hapus Analisis Lama",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hapus Analisis Lama": {
+      "main": [
+        [
+          {
+            "node": "Ambil Ulang Hasil",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ambil Ulang Hasil": {
+      "main": [
+        [
+          {
+            "node": "Tulis Hasil Baru",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tulis Hasil Baru": {
+      "main": [
+        [
+          {
+            "node": "Format Pesan Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Pesan Telegram": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "306e18b4-f421-4ca2-b18c-3ca7496287c7",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "dc96f10ae7dc95d3c138575ba243a0a167923dbcb524841d451aadf9135d5fb3"
+  },
+  "nodeGroups": [],
+  "id": "SG5hxX2bm5c2BaBE",
+  "tags": []
+}
